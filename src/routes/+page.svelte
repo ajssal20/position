@@ -1,9 +1,10 @@
 <script>
   import { onMount } from "svelte";
-  import { isPointWithinRadius, getDistance } from "geolib";
+  import { isPointWithinRadius, getDistance, getRhumbLineBearing } from "geolib";
 
   let distance = null;
   let inRadius = false;
+  let bearing = 0; // Richtung in Grad
   let errorMsg = "";
 
   const ziel = {
@@ -22,6 +23,9 @@
 
           distance = getDistance(current, ziel);
           inRadius = isPointWithinRadius(current, ziel, 15);
+
+          // Richtung berechnen (0° = Norden)
+          bearing = getRhumbLineBearing(current, ziel);
           errorMsg = "";
         },
         (err) => {
@@ -43,31 +47,39 @@
 </script>
 
 <style>
+  body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+  }
+
   .container {
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
     width: 100vw;
     height: 100vh;
-    text-align: center;
     padding: 1rem;
     box-sizing: border-box;
+    text-align: center;
+    position: relative;
   }
 
+  /* Abstand-Kreis */
   .kreis {
     border-radius: 50%;
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
     margin-bottom: 1.5rem;
-    background-color: red; /* default */
-  }
-
-  .gruen {
-    background-color: green;
-  }
-  .rot {
+    width: 40vw;
+    height: 40vw;
+    max-width: 160px;
+    max-height: 160px;
     background-color: red;
   }
+
+  .gruen { background-color: green; }
+  .rot { background-color: red; }
 
   p {
     font-size: 1.2rem;
@@ -80,44 +92,56 @@
     margin-top: 1rem;
   }
 
-  /* 📱 Standard: Handy */
-  .kreis {
-    width: 40vw;
-    height: 40vw;
-    max-width: 160px;
-    max-height: 160px;
+  /* Kompass unten */
+  .kompass-container {
+    position: absolute;
+    bottom: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
 
-  /* 📲 Tablets (ab 600px) */
+  .kompass {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 3px solid #333;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    background-color: #f0f0f0;
+  }
+
+  .pfeil {
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-bottom: 25px solid #ff0000;
+    position: absolute;
+    top: 10px;
+    transform: rotate(0deg);
+    transform-origin: 50% 90%;
+    transition: transform 0.3s ease;
+  }
+
+  /* Media Queries */
   @media (min-width: 600px) {
-    .kreis {
-      width: 25vw;
-      height: 25vw;
-      max-width: 200px;
-      max-height: 200px;
-    }
-
-    p {
-      font-size: 1.4rem;
-    }
+    .kreis { width: 25vw; height: 25vw; max-width: 200px; max-height: 200px; }
+    p { font-size: 1.4rem; }
+    .kompass { width: 100px; height: 100px; }
   }
 
-  /* 💻 Desktop (ab 1024px) */
   @media (min-width: 1024px) {
-    .kreis {
-      width: 15vw;
-      height: 15vw;
-      max-width: 250px;
-      max-height: 250px;
-    }
-
-    p {
-      font-size: 1.6rem;
-    }
+    .kreis { width: 15vw; height: 15vw; max-width: 250px; max-height: 250px; }
+    p { font-size: 1.6rem; }
+    .kompass { width: 120px; height: 120px; }
   }
 </style>
 
 <div class="container">
+  <!-- Abstand-Kreis -->
   <div class="kreis {inRadius ? 'gruen' : 'rot'}"></div>
 
   {#if distance !== null}
@@ -129,4 +153,12 @@
   {#if errorMsg}
     <p class="error">{errorMsg}</p>
   {/if}
+
+  <!-- Kompass unten -->
+  <div class="kompass-container">
+    <div class="kompass">
+      <div class="pfeil" style="transform: rotate({bearing}deg);"></div>
+    </div>
+    <p>Richtung: {bearing.toFixed(0)}°</p>
+  </div>
 </div>
