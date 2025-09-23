@@ -4,7 +4,9 @@
 
   let distance = null;
   let inRadius = false;
-  let bearing = 0; // Richtung in Grad
+  let bearing = 0;       // Richtung zum Ziel
+  let heading = 0;       // aktuelle Geräteausrichtung
+  let arrowRotation = 0; // tatsächliche Pfeil-Rotation
   let errorMsg = "";
 
   const ziel = {
@@ -12,21 +14,29 @@
     longitude: 19.51725368912721,
   };
 
+  function updateArrowRotation() {
+    arrowRotation = bearing - heading;
+  }
+
   onMount(() => {
+    // 1️⃣ Standort überwachen
     if ("geolocation" in navigator) {
       const watchId = navigator.geolocation.watchPosition(
         (pos) => {
-          const current = {
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-          };
+          // Prüfen, ob Genauigkeit ≤ 5m
+          if (pos.coords.accuracy <= 5) {
+            const current = {
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+            };
 
-          distance = getDistance(current, ziel);
-          inRadius = isPointWithinRadius(current, ziel, 15);
-
-          // Richtung berechnen (0° = Norden)
-          bearing = getRhumbLineBearing(current, ziel);
-          errorMsg = "";
+            distance = getDistance(current, ziel);
+            inRadius = isPointWithinRadius(current, ziel, 15);
+            bearing = getRhumbLineBearing(current, ziel);
+            updateArrowRotation();
+          } else {
+            console.log(`Genauigkeit nicht ausreichend: ${pos.coords.accuracy.toFixed(1)} m`);
+          }
         },
         (err) => {
           console.error("Fehler bei Standort:", err);
@@ -34,8 +44,8 @@
         },
         {
           enableHighAccuracy: true,
-          maximumAge: 1000,
-          timeout: 5000,
+          maximumAge: 0,
+          timeout: 10000,
         }
       );
 
@@ -43,16 +53,20 @@
     } else {
       errorMsg = "Geolocation wird von diesem Gerät nicht unterstützt.";
     }
+
+    // 2️⃣ Geräteausrichtung überwachen
+    function handleOrientation(event) {
+      heading = event.alpha || 0;
+      updateArrowRotation();
+    }
+
+    window.addEventListener("deviceorientation", handleOrientation, true);
+
+    return () => window.removeEventListener("deviceorientation", handleOrientation);
   });
 </script>
 
 <style>
-  body, html {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-  }
-
   .container {
     display: flex;
     flex-direction: column;
@@ -62,14 +76,13 @@
     height: 100vh;
     padding: 1rem;
     box-sizing: border-box;
-    text-align: center;
     position: relative;
+    text-align: center;
   }
 
-  /* Abstand-Kreis */
   .kreis {
     border-radius: 50%;
-    box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 15px rgba(0,0,0,0.3);
     margin-bottom: 1.5rem;
     width: 40vw;
     height: 40vw;
@@ -77,22 +90,12 @@
     max-height: 160px;
     background-color: red;
   }
-
   .gruen { background-color: green; }
   .rot { background-color: red; }
 
-  p {
-    font-size: 1.2rem;
-    line-height: 1.4;
-  }
+  p { font-size: 1.2rem; line-height: 1.4; }
+  .error { color: #c00; font-weight: bold; margin-top: 1rem; }
 
-  .error {
-    color: #c00;
-    font-weight: bold;
-    margin-top: 1rem;
-  }
-
-  /* Kompass unten */
   .kompass-container {
     position: absolute;
     bottom: 2rem;
@@ -123,10 +126,9 @@
     top: 10px;
     transform: rotate(0deg);
     transform-origin: 50% 90%;
-    transition: transform 0.3s ease;
+    transition: transform 0.2s ease-out;
   }
 
-  /* Media Queries */
   @media (min-width: 600px) {
     .kreis { width: 25vw; height: 25vw; max-width: 200px; max-height: 200px; }
     p { font-size: 1.4rem; }
@@ -141,7 +143,6 @@
 </style>
 
 <div class="container">
-  <!-- Abstand-Kreis -->
   <div class="kreis {inRadius ? 'gruen' : 'rot'}"></div>
 
   {#if distance !== null}
@@ -154,10 +155,9 @@
     <p class="error">{errorMsg}</p>
   {/if}
 
-  <!-- Kompass unten -->
   <div class="kompass-container">
     <div class="kompass">
-      <div class="pfeil" style="transform: rotate({bearing}deg);"></div>
+      <div class="pfeil" style="transform: rotate({arrowRotation}deg);"></div>
     </div>
     <p>Richtung: {bearing.toFixed(0)}°</p>
   </div>
