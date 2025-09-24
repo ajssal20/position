@@ -9,6 +9,7 @@
 
   const ziel = { latitude: 42.05913363079434, longitude: 19.51725368912721 };
 
+  // Standort und Sensoren
   const position = writable(null);
   const heading = writable(0);
   const beta = writable(0);
@@ -32,6 +33,10 @@
     if ($d === null) return 150;
     return Math.max(80, 300 - Math.min($d, 200));
   });
+
+  // Battery
+  const batteryLevel = writable(null);
+  const isCharging = writable(false);
 
   let errorMsg = "";
   let permissionGranted = false;
@@ -74,6 +79,7 @@
   }
 
   onMount(() => {
+    // Standort
     if ("geolocation" in navigator) {
       const watchId = navigator.geolocation.watchPosition(
         (pos) => {
@@ -92,6 +98,23 @@
       );
       return () => navigator.geolocation.clearWatch(watchId);
     }
+
+    // Battery API
+    if (navigator.getBattery) {
+      navigator.getBattery().then((battery) => {
+        batteryLevel.set(Math.floor(battery.level * 100));
+        isCharging.set(battery.charging);
+
+        battery.addEventListener("levelchange", () => {
+          batteryLevel.set(Math.floor(battery.level * 100));
+        });
+        battery.addEventListener("chargingchange", () => {
+          isCharging.set(battery.charging);
+        });
+      }).catch(() => {
+        batteryLevel.set(null);
+      });
+    }
   });
 </script>
 
@@ -108,26 +131,28 @@
     justify-content: space-between;
     background: linear-gradient(135deg, #1e3c72, #2a5298);
     color: #fff;
+    position: relative;
+    font-family: "Helvetica Neue", sans-serif;
   }
 
   .kreis {
     border-radius: 50%;
-    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+    box-shadow: 0 0 20px rgba(0,0,0,0.4);
     transition: all 0.4s ease;
     animation: pulse 2s infinite;
   }
   .gruen {
     background: radial-gradient(circle, #00ff88, #007f44);
-    box-shadow: 0 0 25px rgba(0,255,136,0.8);
+    box-shadow: 0 0 20px rgba(0,255,136,0.6);
   }
   .rot {
     background: radial-gradient(circle, #ff4444, #990000);
-    box-shadow: 0 0 25px rgba(255,68,68,0.8);
+    box-shadow: 0 0 20px rgba(255,68,68,0.6);
   }
 
   @keyframes pulse {
     0% { transform: scale(1); opacity: 0.9; }
-    50% { transform: scale(1.1); opacity: 1; }
+    50% { transform: scale(1.08); opacity: 1; }
     100% { transform: scale(1); opacity: 0.9; }
   }
 
@@ -142,16 +167,15 @@
     width: 150px;
     height: 150px;
     border-radius: 50%;
-    border: 4px solid #fff;
+    border: 3px solid #fff;
     display: flex;
     justify-content: center;
     align-items: center;
     position: relative;
     background: radial-gradient(circle, #222, #444);
-    box-shadow: 0 0 20px rgba(0,255,255,0.5);
+    box-shadow: 0 0 15px rgba(0,255,255,0.4);
   }
 
-  /* Pfeil als richtiger Kompasspfeil */
   .pfeil {
     position: absolute;
     top: 15px;
@@ -164,18 +188,17 @@
   .pfeil-spitze {
     width: 0;
     height: 0;
-    border-left: 18px solid transparent;
-    border-right: 18px solid transparent;
-    border-bottom: 30px solid #ffcc00;
+    border-left: 16px solid transparent;
+    border-right: 16px solid transparent;
+    border-bottom: 28px solid #ffcc00;
   }
   .pfeil-schaft {
-    width: 8px;
-    height: 45px;
+    width: 7px;
+    height: 40px;
     background: linear-gradient(to bottom, #ff0000, #ffcc00);
     border-radius: 4px;
   }
 
-  /* Nord-Markierung */
   .kompass::before {
     content: "N";
     position: absolute;
@@ -188,19 +211,43 @@
   p { font-size: 1rem; margin: 0.4rem 0; }
   .error { color: #ff6666; font-weight: bold; margin-top: 1rem; }
   button {
-    padding: 0.6rem 1rem;
+    padding: 0.5rem 1rem;
     border: none;
-    border-radius: 8px;
-    background: linear-gradient(45deg, #00c6ff, #0072ff);
+    border-radius: 6px;
+    background: rgba(0,200,255,0.8);
     color: #fff;
-    font-size: 1rem;
+    font-size: 0.95rem;
     cursor: pointer;
     margin-bottom: 1rem;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+
+  /* Kleine Akkuanzeige */
+  .battery-small {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 4px 7px;
+    background: rgba(0,0,0,0.25);
+    color: #fff;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 0 4px rgba(0,0,0,0.3);
+    backdrop-filter: blur(3px);
   }
 </style>
 
 <div class="container">
+  <!-- Kleine Akkuanzeige -->
+  {#if $batteryLevel !== null}
+    <div class="battery-small">
+      🔋 {$batteryLevel.toFixed(0)}% {#if $isCharging}⚡{/if}
+    </div>
+  {/if}
+
   <!-- Kreis für Zielradius -->
   <div
     class="kreis { $inRadius ? 'gruen' : 'rot'}"
