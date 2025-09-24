@@ -7,44 +7,30 @@
     getGreatCircleBearing,
   } from "geolib";
 
-  // 📍 Zielkoordinaten
-  const ziel = {
-    latitude: 42.05913363079434,
-    longitude: 19.51725368912721,
-  };
+  const ziel = { latitude: 42.05913363079434, longitude: 19.51725368912721 };
 
-  // 🔹 Stores
   const position = writable(null);
   const heading = writable(0);
   const beta = writable(0);
   const gamma = writable(0);
 
-  // 🔹 Derived Stores
   const distance = derived(position, ($pos) =>
     $pos ? getPreciseDistance($pos, ziel) : null
   );
-
   const inRadius = derived(position, ($pos) =>
     $pos ? isPointWithinRadius($pos, ziel, 5) : false
   );
-
   const bearing = derived(position, ($pos) =>
     $pos ? getGreatCircleBearing($pos, ziel) : 0
   );
-
-  const arrowRotation = derived(
-    [bearing, heading],
-    ([$bearing, $heading]) => {
-      let rot = $bearing - $heading;
-      if (rot < 0) rot += 360;
-      return rot;
-    }
-  );
-
-  // Kreisgröße dynamisch abhängig von Distanz
+  const arrowRotation = derived([bearing, heading], ([$bearing, $heading]) => {
+    let rot = $bearing - $heading;
+    if (rot < 0) rot += 360;
+    return rot;
+  });
   const circleSize = derived(distance, ($d) => {
     if ($d === null) return 150;
-    return Math.max(80, 300 - Math.min($d, 200)); // je näher, desto größer (min 80px, max 300px)
+    return Math.max(80, 300 - Math.min($d, 200));
   });
 
   let errorMsg = "";
@@ -76,9 +62,9 @@
   function setupOrientation() {
     function handleOrientation(event) {
       if (event.webkitCompassHeading !== undefined) {
-        heading.set(event.webkitCompassHeading); // iOS
+        heading.set(event.webkitCompassHeading);
       } else if (event.absolute === true) {
-        heading.set(event.alpha || 0); // Android
+        heading.set(event.alpha || 0);
       }
       beta.set(event.beta || 0);
       gamma.set(event.gamma || 0);
@@ -88,7 +74,6 @@
   }
 
   onMount(() => {
-    // 🌍 Standort
     if ("geolocation" in navigator) {
       const watchId = navigator.geolocation.watchPosition(
         (pos) => {
@@ -125,7 +110,6 @@
     color: #fff;
   }
 
-  /* Kreis-Anzeige */
   .kreis {
     border-radius: 50%;
     box-shadow: 0 0 30px rgba(0,0,0,0.5);
@@ -147,7 +131,6 @@
     100% { transform: scale(1); opacity: 0.9; }
   }
 
-  /* Kompass */
   .kompass-container {
     margin-bottom: 2rem;
     display: flex;
@@ -168,17 +151,38 @@
     box-shadow: 0 0 20px rgba(0,255,255,0.5);
   }
 
+  /* Pfeil als richtiger Kompasspfeil */
   .pfeil {
+    position: absolute;
+    top: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform-origin: 50% 85%;
+    transition: transform 0.15s linear;
+  }
+  .pfeil-spitze {
     width: 0;
     height: 0;
-    border-left: 15px solid transparent;
-    border-right: 15px solid transparent;
-    border-bottom: 45px solid;
-    border-image: linear-gradient(to bottom, #ff0000, #ffcc00) 1;
+    border-left: 18px solid transparent;
+    border-right: 18px solid transparent;
+    border-bottom: 30px solid #ffcc00;
+  }
+  .pfeil-schaft {
+    width: 8px;
+    height: 45px;
+    background: linear-gradient(to bottom, #ff0000, #ffcc00);
+    border-radius: 4px;
+  }
+
+  /* Nord-Markierung */
+  .kompass::before {
+    content: "N";
     position: absolute;
-    top: 25px;
-    transform-origin: 50% 90%;
-    transition: transform 0.15s linear;
+    top: 5px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #fff;
   }
 
   p { font-size: 1rem; margin: 0.4rem 0; }
@@ -217,7 +221,10 @@
     {/if}
 
     <div class="kompass">
-      <div class="pfeil" style="transform: rotate({$arrowRotation}deg);"></div>
+      <div class="pfeil" style="transform: rotate({$arrowRotation}deg);">
+        <div class="pfeil-spitze"></div>
+        <div class="pfeil-schaft"></div>
+      </div>
     </div>
 
     <p>➡ Ziel: {$bearing.toFixed(0)}°</p>
