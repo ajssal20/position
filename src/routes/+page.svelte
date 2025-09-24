@@ -41,6 +41,12 @@
     }
   );
 
+  // Kreisgröße dynamisch abhängig von Distanz
+  const circleSize = derived(distance, ($d) => {
+    if ($d === null) return 150;
+    return Math.max(80, 300 - Math.min($d, 200)); // je näher, desto größer (min 80px, max 300px)
+  });
+
   let errorMsg = "";
   let permissionGranted = false;
 
@@ -115,20 +121,31 @@
     box-sizing: border-box;
     text-align: center;
     justify-content: space-between;
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    color: #fff;
   }
 
   /* Kreis-Anzeige */
   .kreis {
     border-radius: 50%;
-    box-shadow: 0 0 15px rgba(0,0,0,0.3);
-    width: 40vw;
-    height: 40vw;
-    max-width: 160px;
-    max-height: 160px;
-    margin-top: 2rem;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+    transition: all 0.4s ease;
+    animation: pulse 2s infinite;
   }
-  .gruen { background-color: green; }
-  .rot { background-color: red; }
+  .gruen {
+    background: radial-gradient(circle, #00ff88, #007f44);
+    box-shadow: 0 0 25px rgba(0,255,136,0.8);
+  }
+  .rot {
+    background: radial-gradient(circle, #ff4444, #990000);
+    box-shadow: 0 0 25px rgba(255,68,68,0.8);
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(1); opacity: 0.9; }
+    50% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(1); opacity: 0.9; }
+  }
 
   /* Kompass */
   .kompass-container {
@@ -139,36 +156,52 @@
   }
 
   .kompass {
-    width: 120px;
-    height: 120px;
+    width: 150px;
+    height: 150px;
     border-radius: 50%;
-    border: 3px solid #333;
+    border: 4px solid #fff;
     display: flex;
     justify-content: center;
     align-items: center;
     position: relative;
-    background-color: #f0f0f0;
+    background: radial-gradient(circle, #222, #444);
+    box-shadow: 0 0 20px rgba(0,255,255,0.5);
   }
 
   .pfeil {
     width: 0;
     height: 0;
-    border-left: 12px solid transparent;
-    border-right: 12px solid transparent;
-    border-bottom: 35px solid red;
+    border-left: 15px solid transparent;
+    border-right: 15px solid transparent;
+    border-bottom: 45px solid;
+    border-image: linear-gradient(to bottom, #ff0000, #ffcc00) 1;
     position: absolute;
-    top: 20px;
+    top: 25px;
     transform-origin: 50% 90%;
     transition: transform 0.15s linear;
   }
 
   p { font-size: 1rem; margin: 0.4rem 0; }
-  .error { color: #c00; font-weight: bold; margin-top: 1rem; }
+  .error { color: #ff6666; font-weight: bold; margin-top: 1rem; }
+  button {
+    padding: 0.6rem 1rem;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(45deg, #00c6ff, #0072ff);
+    color: #fff;
+    font-size: 1rem;
+    cursor: pointer;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  }
 </style>
 
 <div class="container">
   <!-- Kreis für Zielradius -->
-  <div class="kreis { $inRadius ? 'gruen' : 'rot'}"></div>
+  <div
+    class="kreis { $inRadius ? 'gruen' : 'rot'}"
+    style="width: {$circleSize}px; height: {$circleSize}px;"
+  ></div>
 
   <!-- Distanzanzeige -->
   {#if $distance !== null}
