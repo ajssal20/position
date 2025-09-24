@@ -1,11 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import { writable, derived } from "svelte/store";
-  import {
-    isPointWithinRadius,
-    getPreciseDistance,
-    getGreatCircleBearing,
-  } from "geolib";
+  import { isPointWithinRadius, getPreciseDistance, getGreatCircleBearing } from "geolib";
 
   const ziel = { latitude: 42.05913363079434, longitude: 19.51725368912721 };
 
@@ -18,19 +14,23 @@
   const distance = derived(position, ($pos) =>
     $pos ? getPreciseDistance($pos, ziel) : null
   );
-  const inRadius = derived(position, ($pos) =>
-    $pos ? isPointWithinRadius($pos, ziel, 5) : false
-  );
+
+  // InRadius kontrollieren für Farbwechsel & Vibration
+  const inRadius = writable(false);
+  let lastInRadius = false;
+
   const bearing = derived(position, ($pos) =>
     $pos ? getGreatCircleBearing($pos, ziel) : 0
   );
+
   const arrowRotation = derived([bearing, heading], ([$bearing, $heading]) => {
     let rot = $bearing - $heading;
     if (rot < 0) rot += 360;
     return rot;
   });
+
   const circleSize = derived(distance, ($d) => {
-    if ($d === null) return 150;
+    if ($d === null) return 150; // Default-Wert
     return Math.max(80, 300 - Math.min($d, 200));
   });
 
@@ -42,10 +42,8 @@
   let permissionGranted = false;
 
   async function requestPermission() {
-    if (
-      typeof DeviceOrientationEvent !== "undefined" &&
-      typeof DeviceOrientationEvent.requestPermission === "function"
-    ) {
+    if (typeof DeviceOrientationEvent !== "undefined" &&
+        typeof DeviceOrientationEvent.requestPermission === "function") {
       try {
         const response = await DeviceOrientationEvent.requestPermission();
         if (response === "granted") {
@@ -84,14 +82,21 @@
       const watchId = navigator.geolocation.watchPosition(
         (pos) => {
           if (pos.coords.accuracy <= 20) {
-            position.set({
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-            });
+            const current = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+            position.set(current);
+
+            // Prüfen Radius und Vibration auslösen
+            const inside = isPointWithinRadius(current, ziel, 5);
+            inRadius.set(inside);
+
+            if (inside && !lastInRadius && navigator.vibrate) {
+              navigator.vibrate(300); // 300ms Vibration
+            }
+            lastInRadius = inside;
           }
         },
         (err) => {
-          console.error("Fehler bei Standort:", err);
+          console.error(err);
           errorMsg = "Standort konnte nicht ermittelt werden.";
         },
         { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
@@ -105,15 +110,13 @@
         batteryLevel.set(Math.floor(battery.level * 100));
         isCharging.set(battery.charging);
 
-        battery.addEventListener("levelchange", () => {
-          batteryLevel.set(Math.floor(battery.level * 100));
-        });
-        battery.addEventListener("chargingchange", () => {
-          isCharging.set(battery.charging);
-        });
-      }).catch(() => {
-        batteryLevel.set(null);
-      });
+        battery.addEventListener("levelchange", () =>
+          batteryLevel.set(Math.floor(battery.level * 100))
+        );
+        battery.addEventListener("chargingchange", () =>
+          isCharging.set(battery.charging)
+        );
+      }).catch(() => batteryLevel.set(null));
     }
   });
 </script>
@@ -222,7 +225,6 @@
     box-shadow: 0 2px 6px rgba(0,0,0,0.3);
   }
 
-  /* Kleine Akkuanzeige */
   .battery-small {
     position: absolute;
     top: 10px;
@@ -251,7 +253,7 @@
   <!-- Kreis für Zielradius -->
   <div
     class="kreis { $inRadius ? 'gruen' : 'rot'}"
-    style="width: {$circleSize}px; height: {$circleSize}px;"
+    style="width: {$circleSize || 150}px; height: {$circleSize || 150}px;"
   ></div>
 
   <!-- Distanzanzeige -->
@@ -266,14 +268,12 @@
     {#if !permissionGranted}
       <button on:click={requestPermission}>📍 Kompass aktivieren</button>
     {/if}
-
     <div class="kompass">
       <div class="pfeil" style="transform: rotate({$arrowRotation}deg);">
         <div class="pfeil-spitze"></div>
         <div class="pfeil-schaft"></div>
       </div>
     </div>
-
     <p>➡ Ziel: {$bearing.toFixed(0)}°</p>
     <p>🧭 Heading: {$heading.toFixed(0)}°</p>
     <p>β: {$beta.toFixed(0)}° | γ: {$gamma.toFixed(0)}°</p>
